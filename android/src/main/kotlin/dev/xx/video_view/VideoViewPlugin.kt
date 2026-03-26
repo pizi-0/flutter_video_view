@@ -16,6 +16,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.DefaultLoadControl
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -33,7 +34,27 @@ class VideoController(
 	private val subSurfaceProducer = binding.textureRegistry.createSurfaceProducer()
 	val id = surfaceProducer.id().toInt()
 	val subId = subSurfaceProducer.id().toInt()
-	private val exoPlayer = ExoPlayer.Builder(binding.applicationContext).build()
+
+
+    private val MAX_MEMORY_BYTES = 256 * 1024 * 1024 // 256 MB cap
+    private val BUFFER_MS = 120_000                  // 2 Minutes ahead
+    private val BACK_BUFFER_MS = 60_000              // 1 Minute behind
+    val loadControl = DefaultLoadControl.Builder()
+    .setBufferDurationsMs(
+        BUFFER_MS,       // minBufferMs
+        BUFFER_MS,       // maxBufferMs
+        1000,            // bufferForPlaybackMs
+        2000             // bufferForPlaybackAfterRebufferMs
+    )
+    .setBackBuffer(BACK_BUFFER_MS, true)
+    // 1. Manually set the byte limit
+    .setTargetBufferBytes(MAX_MEMORY_BYTES) 
+    // 2. IMPORTANT: Set this to FALSE if you want the memory cap 
+    // to actually stop the player from downloading more.
+    .setPrioritizeTimeOverSizeThresholds(false) 
+    .build()
+
+	private val exoPlayer = ExoPlayer.Builder(binding.applicationContext).setLoadControl(loadControl).build()
 	private val handler = Handler(exoPlayer.applicationLooper)
 	private val eventChannel = EventChannel(binding.binaryMessenger, "VideoViewPlugin/$id")
 	private val subtitlePainter = SubtitlePainter(binding.applicationContext)
